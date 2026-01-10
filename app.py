@@ -437,7 +437,3 @@ with tab4:
     else:
         st.info("Upload CSV file")
 
-
-
-
-above mention the code is can not preform real time dataset so convert the program real time dataset preformance
