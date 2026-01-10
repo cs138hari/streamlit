@@ -6,6 +6,7 @@ import seaborn as sns
 import warnings
 warnings.filterwarnings("ignore")
 
+from sklearn.metrics import davies_bouldin_score, calinski_harabasz_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
@@ -39,47 +40,99 @@ with tab1:
     if df is not None:
         st.header("📌 RFM Analysis")
 
+        # ---------- RFM Calculation ----------
         df["InvoiceDate"] = pd.to_datetime(df["InvoiceDate"])
         snapshot_date = df["InvoiceDate"].max() + pd.Timedelta(days=1)
 
-        rfm = df.groupby("CustomerID").agg({
-            "InvoiceDate": lambda x: (snapshot_date - x.max()).days,
-            "InvoiceID": "count",
-            "TotalAmount": "sum"
-        }).reset_index()
+        rfm = (
+            df.groupby("CustomerID")
+            .agg({
+                "InvoiceDate": lambda x: (snapshot_date - x.max()).days,
+                "InvoiceID": "count",
+                "TotalAmount": "sum"
+            })
+            .reset_index()
+        )
 
         rfm.columns = ["CustomerID", "Recency", "Frequency", "Monetary"]
         st.dataframe(rfm.head())
 
+        # ---------- Scaling ----------
         scaler = StandardScaler()
-        rfm[["R_Scaled","F_Scaled","M_Scaled"]] = scaler.fit_transform(
-            rfm[["Recency","Frequency","Monetary"]]
+        rfm[["R_Scaled", "F_Scaled", "M_Scaled"]] = scaler.fit_transform(
+            rfm[["Recency", "Frequency", "Monetary"]]
         )
 
-        rfm["R_Score"] = pd.qcut(rfm["Recency"], 5, labels=[5,4,3,2,1])
-        rfm["F_Score"] = pd.qcut(rfm["Frequency"], 5, labels=[1,2,3,4,5])
-        rfm["M_Score"] = pd.qcut(rfm["Monetary"], 5, labels=[1,2,3,4,5])
+        # ---------- RFM Scores ----------
+        rfm["R_Score"] = pd.qcut(rfm["Recency"], 5, labels=[5, 4, 3, 2, 1])
+        rfm["F_Score"] = pd.qcut(rfm["Frequency"], 5, labels=[1, 2, 3, 4, 5])
+        rfm["M_Score"] = pd.qcut(rfm["Monetary"], 5, labels=[1, 2, 3, 4, 5])
+
         rfm["RFM_Total"] = (
             rfm["R_Score"].astype(int)
             + rfm["F_Score"].astype(int)
             + rfm["M_Score"].astype(int)
         )
 
+        # ================= RFM EVALUATION METRICS =================
+        st.subheader("📈 RFM Evaluation Metrics")
+
+        # 1. Descriptive Statistics
+        st.markdown("### 1️⃣ Descriptive Statistics")
+        st.dataframe(rfm[["Recency", "Frequency", "Monetary"]].describe())
+
+        # 2. Coefficient of Variation
+        st.markdown("### 2️⃣ Coefficient of Variation (Customer Variability)")
+        cv = rfm[["Recency", "Frequency", "Monetary"]].std() / \
+             rfm[["Recency", "Frequency", "Monetary"]].mean()
+        st.dataframe(cv.to_frame("Coefficient of Variation"))
+
+        # 3. Skewness
+        st.markdown("### 3️⃣ Skewness (Distribution Shape)")
+        st.dataframe(rfm[["Recency", "Frequency", "Monetary"]].skew().to_frame("Skewness"))
+
+        # 4. Kurtosis
+        st.markdown("### 4️⃣ Kurtosis (Outlier Detection)")
+        st.dataframe(rfm[["Recency", "Frequency", "Monetary"]].kurtosis().to_frame("Kurtosis"))
+
+        # 5. RFM Segment Distribution
+        st.markdown("### 5️⃣ RFM Segment Distribution (%)")
+        segment_dist = rfm["RFM_Total"].value_counts(normalize=True) * 100
+        st.dataframe(segment_dist.to_frame("Percentage"))
+
+        # 6. Pareto Analysis
+        st.markdown("### 6️⃣ Pareto Analysis (80/20 Rule)")
+        rfm_sorted = rfm.sort_values("Monetary", ascending=False)
+        revenue_top_20 = (
+            rfm_sorted.iloc[:int(0.2 * len(rfm_sorted))]["Monetary"].sum()
+            / rfm_sorted["Monetary"].sum()
+        )
+        st.metric("Revenue from Top 20% Customers", f"{revenue_top_20:.2%}")
+
+        # 7. RFM Consistency
+        st.markdown("### 7️⃣ RFM Consistency Metric")
+        rfm_consistency = rfm[["RFM_Total", "Monetary"]].corr().iloc[0, 1]
+        st.metric("Correlation (RFM Score vs Monetary)", f"{rfm_consistency:.3f}")
+
+        # ---------- Visualizations ----------
         st.subheader("📊 RFM Distributions")
-        fig_rfm, ax = plt.subplots(1, 3, figsize=(15,4))
+        fig, ax = plt.subplots(1, 3, figsize=(15, 4))
         sns.histplot(rfm["Recency"], bins=30, ax=ax[0])
         sns.histplot(rfm["Frequency"], bins=30, ax=ax[1])
         sns.histplot(rfm["Monetary"], bins=30, ax=ax[2])
-        st.pyplot(fig_rfm)
+        st.pyplot(fig)
 
         st.subheader("📊 RFM Score Distribution")
-        fig_score, ax_score = plt.subplots()
-        rfm["RFM_Total"].value_counts().sort_index().plot(kind="bar", ax=ax_score)
-        st.pyplot(fig_score)
+        fig2, ax2 = plt.subplots()
+        rfm["RFM_Total"].value_counts().sort_index().plot(kind="bar", ax=ax2)
+        st.pyplot(fig2)
 
     else:
-        st.info("Upload CSV file")
+        st.info("Upload CSV file to perform RFM analysis")
 
+# =====================================================
+# TAB 2: K-MEANS CLUSTERING
+# =====================================================
 # =====================================================
 # TAB 2: K-MEANS CLUSTERING
 # =====================================================
@@ -93,7 +146,6 @@ with tab2:
         # ---------- Select Numeric Columns ----------
         num_cols = ["Quantity", "UnitPrice", "TotalAmount"]
         data = df[num_cols]
-
         st.write("Numeric columns used:", num_cols)
 
         # ---------- Scaling ----------
@@ -102,10 +154,10 @@ with tab2:
 
         # ---------- Elbow Method ----------
         wcss = []
-        for k in range(2, 11):
-            kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
-            kmeans.fit(scaled_data)
-            wcss.append(kmeans.inertia_)
+        for k_val in range(2, 11):
+            km = KMeans(n_clusters=k_val, random_state=42, n_init=10)
+            km.fit(scaled_data)
+            wcss.append(km.inertia_)
 
         fig_elbow, ax_elbow = plt.subplots()
         ax_elbow.plot(range(2, 11), wcss, marker="o")
@@ -122,26 +174,55 @@ with tab2:
 
         df["KMeans_Cluster"] = clusters
 
-        # ---------- Evaluation ----------
-        score = silhouette_score(scaled_data, clusters)
-        st.success(f"Silhouette Score: {score:.3f}")
+        # -------------------------------
+        # 3️⃣ K-Means Evaluation Metrics
+        # -------------------------------
+        st.subheader("📊 K-Means Evaluation Metrics")
+
+        inertia = kmeans.inertia_
+        silhouette = silhouette_score(scaled_data, clusters)
+        davies_bouldin = davies_bouldin_score(scaled_data, clusters)
+        calinski_harabasz = calinski_harabasz_score(scaled_data, clusters)
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Inertia (WCSS)", f"{inertia:.2f}")
+        col2.metric("Silhouette Score", f"{silhouette:.4f}")
+        col3.metric("Davies–Bouldin Index", f"{davies_bouldin:.4f}")
+        col4.metric("Calinski–Harabasz Index", f"{calinski_harabasz:.2f}")
+
+        # -------------------------------
+        # 4️⃣ Cluster Visualization
+        # -------------------------------
+        st.subheader("📊 Cluster Visualization (Feature Space)")
+
+        fig_cluster, ax_cluster = plt.subplots(figsize=(8, 6))
+        ax_cluster.scatter(
+            scaled_data[:, 0],
+            scaled_data[:, 1],
+            c=clusters,
+            cmap="viridis"
+        )
+        ax_cluster.set_xlabel("Feature 1 (Scaled)")
+        ax_cluster.set_ylabel("Feature 2 (Scaled)")
+        ax_cluster.set_title("K-Means Clustering Result")
+        st.pyplot(fig_cluster)
 
         # ---------- PCA for Visualization ----------
         from sklearn.decomposition import PCA
         pca = PCA(n_components=2)
         pca_data = pca.fit_transform(scaled_data)
 
-        fig_scatter, ax_scatter = plt.subplots()
-        scatter = ax_scatter.scatter(
+        fig_pca, ax_pca = plt.subplots()
+        ax_pca.scatter(
             pca_data[:, 0],
             pca_data[:, 1],
             c=clusters,
             cmap="viridis"
         )
-        ax_scatter.set_xlabel("PCA 1")
-        ax_scatter.set_ylabel("PCA 2")
-        ax_scatter.set_title("K-Means Clusters (PCA View)")
-        st.pyplot(fig_scatter)
+        ax_pca.set_xlabel("PCA 1")
+        ax_pca.set_ylabel("PCA 2")
+        ax_pca.set_title("K-Means Clusters (PCA View)")
+        st.pyplot(fig_pca)
 
         # ---------- Cluster Distribution ----------
         st.subheader("📊 Cluster Size Distribution")
@@ -151,6 +232,10 @@ with tab2:
     else:
         st.info("Upload CSV file")
 
+
+# =====================================================
+# TAB 3: APRIORI
+# =====================================================
 # =====================================================
 # TAB 3: APRIORI
 # =====================================================
@@ -159,8 +244,10 @@ with tab3:
         st.header("🔗 Apriori Algorithm")
 
         basket = (
-            df.groupby(["InvoiceID","ItemName"])["Quantity"]
-            .sum().unstack().fillna(0)
+            df.groupby(["InvoiceID", "ItemName"])["Quantity"]
+            .sum()
+            .unstack()
+            .fillna(0)
         )
         basket = (basket > 0).astype(int)
 
@@ -170,19 +257,47 @@ with tab3:
         if not rules.empty:
             st.dataframe(rules.head())
 
+            # -------------------------------
+            # 3️⃣ Apriori Evaluation Metrics
+            # -------------------------------
+            st.subheader("📊 Apriori Evaluation Metrics")
+
+            evaluation_metrics = rules[
+                [
+                    "antecedents",
+                    "consequents",
+                    "support",
+                    "confidence",
+                    "lift",
+                    "leverage",
+                    "conviction"
+                ]
+            ]
+
+            st.dataframe(evaluation_metrics.head(10))
+
+            # -------------------------------
+            # 4️⃣ Apriori Visualizations
+            # -------------------------------
             st.subheader("📊 Apriori Visualizations")
+
             fig1, ax1 = plt.subplots()
             ax1.scatter(rules["support"], rules["confidence"])
+            ax1.set_xlabel("Support")
+            ax1.set_ylabel("Confidence")
             st.pyplot(fig1)
 
             fig2, ax2 = plt.subplots()
             ax2.hist(rules["lift"], bins=20)
+            ax2.set_xlabel("Lift")
             st.pyplot(fig2)
+
         else:
             st.warning("No rules found")
 
     else:
         st.info("Upload CSV file")
+
 
 # =====================================================
 # TAB 4: HYBRID K-MEANS + APRIORI
@@ -192,8 +307,12 @@ with tab4:
         st.header("🔗 Hybrid K-Means + Apriori (Cluster-wise Rules)")
 
         # ---------- K-Means ----------
-        scaled = StandardScaler().fit_transform(df[["Quantity", "TotalAmount"]])
-        df["Cluster"] = KMeans(n_clusters=3, random_state=42).fit_predict(scaled)
+        num_scaled = StandardScaler().fit_transform(
+            df[["Quantity", "TotalAmount"]]
+        )
+
+        kmeans = KMeans(n_clusters=3, random_state=42)
+        df["Cluster"] = kmeans.fit_predict(num_scaled)
 
         # ---------- Cluster Distribution ----------
         st.subheader("📊 Cluster Distribution")
@@ -244,10 +363,9 @@ with tab4:
             use_colnames=True
         )
 
-        st.write("Total frequent itemsets:", len(freq_items))
-
         if freq_items.empty:
             st.warning("❌ No frequent itemsets found")
+
         else:
             rules = association_rules(
                 freq_items,
@@ -255,15 +373,9 @@ with tab4:
                 min_threshold=0.1
             )
 
-            rules = rules[
-                (rules["antecedents"].apply(len) >= 1) &
-                (rules["consequents"].apply(len) >= 1)
-            ]
-
-            st.write("Association rules formed:", len(rules))
-
             if rules.empty:
                 st.warning("❌ No valid association rules formed")
+
             else:
                 st.subheader("### ✅ Association Rules")
                 st.dataframe(
@@ -273,6 +385,40 @@ with tab4:
                     .sort_values("lift", ascending=False)
                     .head(10)
                 )
+
+                # =====================================
+                # 🔎 COMBINED EVALUATION METRICS
+                # =====================================
+                st.subheader("📊 Combined Model Evaluation Metrics")
+
+                # ---------- K-Means Metrics ----------
+                kmeans_metrics = {
+                    "Inertia (WCSS)": kmeans.inertia_,
+                    "Silhouette Score": silhouette_score(num_scaled, df["Cluster"]),
+                    "Davies-Bouldin Index": davies_bouldin_score(num_scaled, df["Cluster"]),
+                    "Calinski-Harabasz Index": calinski_harabasz_score(num_scaled, df["Cluster"])
+                }
+
+                # ---------- Apriori Metrics ----------
+                apriori_metrics = {
+                    "Average Support": rules["support"].mean(),
+                    "Average Confidence": rules["confidence"].mean(),
+                    "Average Lift": rules["lift"].mean(),
+                    "Average Leverage": rules["leverage"].mean(),
+                    "Average Conviction": rules["conviction"].mean()
+                }
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.markdown("### 🔵 K-Means Metrics")
+                    for k, v in kmeans_metrics.items():
+                        st.metric(k, f"{v:.4f}")
+
+                with col2:
+                    st.markdown("### 🟢 Apriori Metrics")
+                    for k, v in apriori_metrics.items():
+                        st.metric(k, f"{v:.4f}")
 
                 # ---------- Visualizations ----------
                 st.subheader("📊 Rule Visualizations")
@@ -292,3 +438,6 @@ with tab4:
         st.info("Upload CSV file")
 
 
+
+
+above mention the code is can not preform real time dataset so convert the program real time dataset preformance
