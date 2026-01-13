@@ -133,9 +133,6 @@ with tab1:
 # =====================================================
 # TAB 2: K-MEANS CLUSTERING (MODIFIED: K = 0–10 DISPLAY)
 # =====================================================
-# =====================================================
-# TAB 2: K-MEANS CLUSTERING (ERROR-FREE VERSION)
-# =====================================================
 with tab2:
     if df is not None:
         st.header("📊 K-Means Clustering")
@@ -152,13 +149,13 @@ with tab2:
         scaler = StandardScaler()
         scaled_data = scaler.fit_transform(data)
 
-        # ---------- Elbow Method ----------
+        # ---------- Elbow Method (K = 0–10 on X-axis) ----------
         wcss = []
         K_RANGE = range(0, 11)
 
         for k_val in K_RANGE:
             if k_val < 2:
-                wcss.append(np.nan)
+                wcss.append(np.nan)   # invalid K values
             else:
                 km = KMeans(
                     n_clusters=k_val,
@@ -175,87 +172,85 @@ with tab2:
         ax_elbow.set_title("Elbow Method (K = 0–10)")
         st.pyplot(fig_elbow)
 
-        # ---------- Select K (ALLOW ZERO) ----------
-k = st.slider(
+        # ---------- Select K (VALID RANGE ONLY) ----------
+     k = st.slider(
     "Select number of clusters (K)",
     min_value=0,
     max_value=10,
     value=3
 )
 
-# ---------- VALIDATION ----------
 if k < 2:
-    st.warning("⚠️ K-Means requires K ≥ 2. Please select K = 2 or higher.")
-else:
-    # ---------- K-Means ----------
-    kmeans = KMeans(
-        n_clusters=k,
-        random_state=42,
-        n_init=10
-    )
+    st.warning("⚠️ K-Means clustering requires K ≥ 2. Please select K = 2 or higher.")
+    st.stop()
 
-    clusters = kmeans.fit_predict(scaled_data)
-    df["KMeans_Cluster"] = clusters
+kmeans = KMeans(
+    n_clusters=k,
+    random_state=42,
+    n_init=10
+)
+clusters = kmeans.fit_predict(scaled_data)
+df["KMeans_Cluster"] = clusters
 
-    # ---------- Evaluation Metrics ----------
-    st.subheader("📊 K-Means Evaluation Metrics")
 
-    col1, col2, col3, col4 = st.columns(4)
+        # ---------- Evaluation Metrics ----------
+        st.subheader("📊 K-Means Evaluation Metrics")
 
-    col1.metric("Inertia (WCSS)", f"{kmeans.inertia_:.2f}")
-    col2.metric(
-        "Silhouette Score",
-        f"{silhouette_score(scaled_data, clusters):.4f}"
-    )
-    col3.metric(
-        "Davies–Bouldin Index",
-        f"{davies_bouldin_score(scaled_data, clusters):.4f}"
-    )
-    col4.metric(
-        "Calinski–Harabasz Index",
-        f"{calinski_harabasz_score(scaled_data, clusters):.2f}"
-    )
+        col1, col2, col3, col4 = st.columns(4)
 
-    # ---------- Cluster Visualization ----------
-    st.subheader("📊 Cluster Visualization")
+        col1.metric("Inertia (WCSS)", f"{kmeans.inertia_:.2f}")
+        col2.metric(
+            "Silhouette Score",
+            f"{silhouette_score(scaled_data, clusters):.4f}"
+        )
+        col3.metric(
+            "Davies–Bouldin Index",
+            f"{davies_bouldin_score(scaled_data, clusters):.4f}"
+        )
+        col4.metric(
+            "Calinski–Harabasz Index",
+            f"{calinski_harabasz_score(scaled_data, clusters):.2f}"
+        )
 
-    fig_cluster, ax_cluster = plt.subplots(figsize=(8, 6))
-    ax_cluster.scatter(
-        scaled_data[:, 0],
-        scaled_data[:, 1],
-        c=clusters,
-        cmap="viridis"
-    )
-    ax_cluster.set_xlabel("Feature 1 (Scaled)")
-    ax_cluster.set_ylabel("Feature 2 (Scaled)")
-    ax_cluster.set_title("K-Means Clustering Result")
-    st.pyplot(fig_cluster)
+        # ---------- Cluster Visualization ----------
+        st.subheader("📊 Cluster Visualization")
 
-    # ---------- PCA Visualization ----------
-    from sklearn.decomposition import PCA
+        fig_cluster, ax_cluster = plt.subplots(figsize=(8, 6))
+        ax_cluster.scatter(
+            scaled_data[:, 0],
+            scaled_data[:, 1],
+            c=clusters,
+            cmap="viridis"
+        )
+        ax_cluster.set_xlabel("Feature 1 (Scaled)")
+        ax_cluster.set_ylabel("Feature 2 (Scaled)")
+        ax_cluster.set_title("K-Means Clustering Result")
+        st.pyplot(fig_cluster)
 
-    pca = PCA(n_components=2)
-    pca_data = pca.fit_transform(scaled_data)
+        # ---------- PCA Visualization ----------
+        from sklearn.decomposition import PCA
+        pca = PCA(n_components=2)
+        pca_data = pca.fit_transform(scaled_data)
 
-    fig_pca, ax_pca = plt.subplots()
-    ax_pca.scatter(
-        pca_data[:, 0],
-        pca_data[:, 1],
-        c=clusters,
-        cmap="viridis"
-    )
-    ax_pca.set_xlabel("PCA 1")
-    ax_pca.set_ylabel("PCA 2")
-    ax_pca.set_title("K-Means Clusters (PCA View)")
-    st.pyplot(fig_pca)
+        fig_pca, ax_pca = plt.subplots()
+        ax_pca.scatter(
+            pca_data[:, 0],
+            pca_data[:, 1],
+            c=clusters,
+            cmap="viridis"
+        )
+        ax_pca.set_xlabel("PCA 1")
+        ax_pca.set_ylabel("PCA 2")
+        ax_pca.set_title("K-Means Clusters (PCA View)")
+        st.pyplot(fig_pca)
 
-    # ---------- Cluster Distribution ----------
-    st.subheader("📊 Cluster Size Distribution")
-    cluster_counts = pd.Series(clusters).value_counts().sort_index()
-    st.bar_chart(cluster_counts)
+        # ---------- Cluster Distribution ----------
+        st.subheader("📊 Cluster Size Distribution")
+        cluster_counts = pd.Series(clusters).value_counts().sort_index()
+        st.bar_chart(cluster_counts)
 
-  
-
+    else:
+        st.info("Upload CSV file to perform K-Means clustering")
 
 
 # =====================================================
@@ -329,7 +324,7 @@ with tab3:
 # =====================================================
 with tab4:
     if df is not None:
-        st.header("🔗 Hybrid K-Means + Apriori (Cluster-wise Rules)")
+        st.header("🔗 Hybrid ")
 
         # ---------- K-Means ----------
         num_scaled = StandardScaler().fit_transform(
@@ -458,16 +453,4 @@ with tab4:
                 ax2.hist(rules["lift"], bins=20)
                 ax2.set_xlabel("Lift")
                 st.pyplot(fig2)
-
-    else:
-        st.info("Upload CSV file")
-
-
-
-
-
-
-
-
-
 
