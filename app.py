@@ -173,21 +173,25 @@ with tab2:
         st.pyplot(fig_elbow)
 
         # ---------- Select K (VALID RANGE ONLY) ----------
-        k = st.slider(
-            "Select number of clusters (K)",
-            min_value=0,
-            max_value=10,
-            value=3
-        )
+     k = st.slider(
+    "Select number of clusters (K)",
+    min_value=0,
+    max_value=10,
+    value=3
+)
 
-        # ---------- K-Means Model ----------
-        kmeans = KMeans(
-            n_clusters=k,
-            random_state=42,
-            n_init=10
-        )
-        clusters = kmeans.fit_predict(scaled_data)
-        df["KMeans_Cluster"] = clusters
+if k < 2:
+    st.warning("⚠️ K-Means clustering requires K ≥ 2. Please select K = 2 or higher.")
+    st.stop()
+
+kmeans = KMeans(
+    n_clusters=k,
+    random_state=42,
+    n_init=10
+)
+clusters = kmeans.fit_predict(scaled_data)
+df["KMeans_Cluster"] = clusters
+
 
         # ---------- Evaluation Metrics ----------
         st.subheader("📊 K-Means Evaluation Metrics")
@@ -452,6 +456,7 @@ with tab4:
 
     else:
         st.info("Upload CSV file")
+
 
 
 
