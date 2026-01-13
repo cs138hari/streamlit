@@ -175,7 +175,7 @@ with tab2:
         # ---------- Select K (VALID RANGE ONLY) ----------
         k = st.slider(
             "Select number of clusters (K)",
-            min_value=2,
+            min_value=0,
             max_value=10,
             value=3
         )
@@ -452,6 +452,7 @@ with tab4:
 
     else:
         st.info("Upload CSV file")
+
 
 
 
