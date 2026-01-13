@@ -133,6 +133,9 @@ with tab1:
 # =====================================================
 # TAB 2: K-MEANS CLUSTERING (MODIFIED: K = 0–10 DISPLAY)
 # =====================================================
+# =====================================================
+# TAB 2: K-MEANS CLUSTERING (ERROR-FREE VERSION)
+# =====================================================
 with tab2:
     if df is not None:
         st.header("📊 K-Means Clustering")
@@ -149,13 +152,13 @@ with tab2:
         scaler = StandardScaler()
         scaled_data = scaler.fit_transform(data)
 
-        # ---------- Elbow Method (K = 0–10 on X-axis) ----------
+        # ---------- Elbow Method ----------
         wcss = []
         K_RANGE = range(0, 11)
 
         for k_val in K_RANGE:
             if k_val < 2:
-                wcss.append(np.nan)   # invalid K values
+                wcss.append(np.nan)
             else:
                 km = KMeans(
                     n_clusters=k_val,
@@ -172,26 +175,23 @@ with tab2:
         ax_elbow.set_title("Elbow Method (K = 0–10)")
         st.pyplot(fig_elbow)
 
-        # ---------- Select K (VALID RANGE ONLY) ----------
-     k = st.slider(
-    "Select number of clusters (K)",
-    min_value=0,
-    max_value=10,
-    value=3
-)
+        # ---------- Select K ----------
+        k = st.slider(
+            "Select number of clusters (K)",
+            min_value=2,
+            max_value=10,
+            value=3
+        )
 
-if k < 2:
-    st.warning("⚠️ K-Means clustering requires K ≥ 2. Please select K = 2 or higher.")
-    st.stop()
+        # ---------- K-Means ----------
+        kmeans = KMeans(
+            n_clusters=k,
+            random_state=42,
+            n_init=10
+        )
 
-kmeans = KMeans(
-    n_clusters=k,
-    random_state=42,
-    n_init=10
-)
-clusters = kmeans.fit_predict(scaled_data)
-df["KMeans_Cluster"] = clusters
-
+        clusters = kmeans.fit_predict(scaled_data)
+        df["KMeans_Cluster"] = clusters
 
         # ---------- Evaluation Metrics ----------
         st.subheader("📊 K-Means Evaluation Metrics")
@@ -229,6 +229,7 @@ df["KMeans_Cluster"] = clusters
 
         # ---------- PCA Visualization ----------
         from sklearn.decomposition import PCA
+
         pca = PCA(n_components=2)
         pca_data = pca.fit_transform(scaled_data)
 
@@ -251,6 +252,7 @@ df["KMeans_Cluster"] = clusters
 
     else:
         st.info("Upload CSV file to perform K-Means clustering")
+
 
 
 # =====================================================
@@ -456,6 +458,7 @@ with tab4:
 
     else:
         st.info("Upload CSV file")
+
 
 
 
