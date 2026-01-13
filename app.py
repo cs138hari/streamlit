@@ -154,7 +154,7 @@ with tab2:
 
         # ---------- Elbow Method ----------
         wcss = []
-        for k_val in range(2, 11):
+        for k_val in range(0, 11):
             km = KMeans(n_clusters=k_val, random_state=42, n_init=10)
             km.fit(scaled_data)
             wcss.append(km.inertia_)
@@ -436,4 +436,5 @@ with tab4:
 
     else:
         st.info("Upload CSV file")
+
 
