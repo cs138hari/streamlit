@@ -254,8 +254,7 @@ else:
     cluster_counts = pd.Series(clusters).value_counts().sort_index()
     st.bar_chart(cluster_counts)
 
-    else:
-        st.info("Upload CSV file to perform K-Means clustering")
+  
 
 
 
@@ -462,6 +461,7 @@ with tab4:
 
     else:
         st.info("Upload CSV file")
+
 
 
 
