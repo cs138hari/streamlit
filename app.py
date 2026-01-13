@@ -154,17 +154,24 @@ with tab2:
 
         # ---------- Elbow Method ----------
         wcss = []
-        for k_val in range(0, 11):
-            km = KMeans(n_clusters=k_val, random_state=42, n_init=10)
-            km.fit(scaled_data)
-            wcss.append(km.inertia_)
+K_RANGE = range(0, 11)
+
+for k_val in K_RANGE:
+    if k_val < 2:
+        wcss.append(np.nan)   # placeholder for invalid K
+    else:
+        km = KMeans(n_clusters=k_val, random_state=42, n_init=10)
+        km.fit(scaled_data)
+        wcss.append(km.inertia_)
+
 
         fig_elbow, ax_elbow = plt.subplots()
-        ax_elbow.plot(range(0, 11), wcss, marker="o")
-        ax_elbow.set_xlabel("Number of Clusters (K)")
-        ax_elbow.set_ylabel("WCSS")
-        ax_elbow.set_title("Elbow Method")
-        st.pyplot(fig_elbow)
+ax_elbow.plot(K_RANGE, wcss, marker="o")
+ax_elbow.set_xlabel("Number of Clusters (K)")
+ax_elbow.set_ylabel("WCSS")
+ax_elbow.set_title("Elbow Method (K = 0–10)")
+st.pyplot(fig_elbow)
+
 
         # ---------- Choose K ----------
         k = st.slider("Select number of clusters (K)", 0, 1, 2)
@@ -436,6 +443,7 @@ with tab4:
 
     else:
         st.info("Upload CSV file")
+
 
 
 
