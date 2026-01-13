@@ -131,10 +131,7 @@ with tab1:
         st.info("Upload CSV file to perform RFM analysis")
 
 # =====================================================
-# TAB 2: K-MEANS CLUSTERING
-# =====================================================
-# =====================================================
-# TAB 2: K-MEANS CLUSTERING
+# TAB 2: K-MEANS CLUSTERING (MODIFIED: K = 0–10 DISPLAY)
 # =====================================================
 with tab2:
     if df is not None:
@@ -152,55 +149,67 @@ with tab2:
         scaler = StandardScaler()
         scaled_data = scaler.fit_transform(data)
 
-        # ---------- Elbow Method ----------
+        # ---------- Elbow Method (K = 0–10 on X-axis) ----------
         wcss = []
-K_RANGE = range(0, 11)
+        K_RANGE = range(0, 11)
 
-for k_val in K_RANGE:
-    if k_val < 2:
-        wcss.append(np.nan)   # placeholder for invalid K
-    else:
-        km = KMeans(n_clusters=k_val, random_state=42, n_init=10)
-        km.fit(scaled_data)
-        wcss.append(km.inertia_)
-
+        for k_val in K_RANGE:
+            if k_val < 2:
+                wcss.append(np.nan)   # invalid K values
+            else:
+                km = KMeans(
+                    n_clusters=k_val,
+                    random_state=42,
+                    n_init=10
+                )
+                km.fit(scaled_data)
+                wcss.append(km.inertia_)
 
         fig_elbow, ax_elbow = plt.subplots()
-ax_elbow.plot(K_RANGE, wcss, marker="o")
-ax_elbow.set_xlabel("Number of Clusters (K)")
-ax_elbow.set_ylabel("WCSS")
-ax_elbow.set_title("Elbow Method (K = 0–10)")
-st.pyplot(fig_elbow)
+        ax_elbow.plot(K_RANGE, wcss, marker="o")
+        ax_elbow.set_xlabel("Number of Clusters (K)")
+        ax_elbow.set_ylabel("WCSS")
+        ax_elbow.set_title("Elbow Method (K = 0–10)")
+        st.pyplot(fig_elbow)
 
+        # ---------- Select K (VALID RANGE ONLY) ----------
+        k = st.slider(
+            "Select number of clusters (K)",
+            min_value=2,
+            max_value=10,
+            value=3
+        )
 
-        # ---------- Choose K ----------
-        k = st.slider("Select number of clusters (K)", 0, 1, 2)
-
-        kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+        # ---------- K-Means Model ----------
+        kmeans = KMeans(
+            n_clusters=k,
+            random_state=42,
+            n_init=10
+        )
         clusters = kmeans.fit_predict(scaled_data)
-
         df["KMeans_Cluster"] = clusters
 
-        # -------------------------------
-        # 3️⃣ K-Means Evaluation Metrics
-        # -------------------------------
+        # ---------- Evaluation Metrics ----------
         st.subheader("📊 K-Means Evaluation Metrics")
 
-        inertia = kmeans.inertia_
-        silhouette = silhouette_score(scaled_data, clusters)
-        davies_bouldin = davies_bouldin_score(scaled_data, clusters)
-        calinski_harabasz = calinski_harabasz_score(scaled_data, clusters)
-
         col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Inertia (WCSS)", f"{inertia:.2f}")
-        col2.metric("Silhouette Score", f"{silhouette:.4f}")
-        col3.metric("Davies–Bouldin Index", f"{davies_bouldin:.4f}")
-        col4.metric("Calinski–Harabasz Index", f"{calinski_harabasz:.2f}")
 
-        # -------------------------------
-        # 4️⃣ Cluster Visualization
-        # -------------------------------
-        st.subheader("📊 Cluster Visualization (Feature Space)")
+        col1.metric("Inertia (WCSS)", f"{kmeans.inertia_:.2f}")
+        col2.metric(
+            "Silhouette Score",
+            f"{silhouette_score(scaled_data, clusters):.4f}"
+        )
+        col3.metric(
+            "Davies–Bouldin Index",
+            f"{davies_bouldin_score(scaled_data, clusters):.4f}"
+        )
+        col4.metric(
+            "Calinski–Harabasz Index",
+            f"{calinski_harabasz_score(scaled_data, clusters):.2f}"
+        )
+
+        # ---------- Cluster Visualization ----------
+        st.subheader("📊 Cluster Visualization")
 
         fig_cluster, ax_cluster = plt.subplots(figsize=(8, 6))
         ax_cluster.scatter(
@@ -214,7 +223,7 @@ st.pyplot(fig_elbow)
         ax_cluster.set_title("K-Means Clustering Result")
         st.pyplot(fig_cluster)
 
-        # ---------- PCA for Visualization ----------
+        # ---------- PCA Visualization ----------
         from sklearn.decomposition import PCA
         pca = PCA(n_components=2)
         pca_data = pca.fit_transform(scaled_data)
@@ -237,7 +246,7 @@ st.pyplot(fig_elbow)
         st.bar_chart(cluster_counts)
 
     else:
-        st.info("Upload CSV file")
+        st.info("Upload CSV file to perform K-Means clustering")
 
 
 # =====================================================
@@ -443,6 +452,7 @@ with tab4:
 
     else:
         st.info("Upload CSV file")
+
 
 
 
