@@ -154,20 +154,20 @@ with tab2:
 
         # ---------- Elbow Method ----------
         wcss = []
-        for k_val in range(0, 11):
+        for k_val in range(1, 11):
             km = KMeans(n_clusters=k_val, random_state=42, n_init=10)
             km.fit(scaled_data)
             wcss.append(km.inertia_)
 
         fig_elbow, ax_elbow = plt.subplots()
-        ax_elbow.plot(range(0, 11), wcss, marker="o")
+        ax_elbow.plot(range(1, 11), wcss, marker="o")
         ax_elbow.set_xlabel("Number of Clusters (K)")
         ax_elbow.set_ylabel("WCSS")
         ax_elbow.set_title("Elbow Method")
         st.pyplot(fig_elbow)
 
         # ---------- Choose K ----------
-        k = st.slider("Select number of clusters (K)", 0, 1, 2)
+        k = st.slider("Select number of clusters (K)",2,10,3)
 
         kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
         clusters = kmeans.fit_predict(scaled_data)
@@ -236,9 +236,6 @@ with tab2:
 # =====================================================
 # TAB 3: APRIORI
 # =====================================================
-# =====================================================
-# TAB 3: APRIORI
-# =====================================================
 with tab3:
     if df is not None:
         st.header("🔗 Apriori Algorithm")
@@ -251,30 +248,28 @@ with tab3:
         )
         basket = (basket > 0).astype(int)
 
-        freq = apriori(basket, min_support=0.005, use_colnames=True)
-        rules = association_rules(freq, metric="confidence", min_threshold=0.3)
+        freq = apriori(basket, min_support=0.003, use_colnames=True)
+        rules = association_rules(freq, metric="confidence", min_threshold=0.2)
+
 
         if not rules.empty:
             st.dataframe(rules.head())
 
             # -------------------------------
-            # 3️⃣ Apriori Evaluation Metrics
+            # 3️⃣ Apriori Evaluation Metrics (6 Metrics Only)
             # -------------------------------
             st.subheader("📊 Apriori Evaluation Metrics")
 
-            evaluation_metrics = rules[
-                [
-                    "antecedents",
-                    "consequents",
-                    "support",
-                    "confidence",
-                    "lift",
-                    "leverage",
-                    "conviction"
-                ]
-            ]
+            rules_eval = pd.DataFrame({
+                "Support": rules["support"],
+                "Confidence": rules["confidence"],
+                "Lift": rules["lift"],
+                "Leverage": rules["leverage"],
+                "Conviction": rules["conviction"],
+                "Rule Length": rules["antecedents"].apply(lambda x: len(x))
+            })
 
-            st.dataframe(evaluation_metrics.head(10))
+            st.dataframe(rules_eval.head(10))
 
             # -------------------------------
             # 4️⃣ Apriori Visualizations
@@ -306,43 +301,66 @@ with tab4:
     if df is not None:
         st.header("🔗 Hybrid K-Means + Apriori (Cluster-wise Rules)")
 
-        # ---------- K-Means ----------
-        num_scaled = StandardScaler().fit_transform(
-            df[["Quantity", "TotalAmount"]]
+        # ---------- Select Number of Clusters (Dropdown) ----------
+        k_hybrid = st.selectbox(
+            "Select Number of Clusters (K)",
+            options=list(range(2, 11)),
+            index=1  # default = 3
         )
 
-        kmeans = KMeans(n_clusters=3, random_state=42)
-        df["Cluster"] = kmeans.fit_predict(num_scaled)
+        # ---------- K-Means ----------
+        num_features = ["Quantity", "TotalAmount"]
+        scaler = StandardScaler()
+        num_scaled = scaler.fit_transform(df[num_features])
+
+        kmeans = KMeans(
+            n_clusters=k_hybrid,
+            random_state=42,
+            n_init=10
+        )
+
+        # Shift labels to 1...K
+        df["Cluster"] = kmeans.fit_predict(num_scaled) + 1
 
         # ---------- Cluster Distribution ----------
         st.subheader("📊 Cluster Distribution")
+
         cluster_counts = df["Cluster"].value_counts().sort_index()
 
         fig_bar, ax_bar = plt.subplots()
-        cluster_counts.plot(kind="bar", ax=ax_bar)
+        ax_bar.bar(cluster_counts.index, cluster_counts.values)
+        ax_bar.set_xlabel("Cluster")
+        ax_bar.set_ylabel("Number of Records")
+        ax_bar.set_title("K-Means Cluster Distribution")
         st.pyplot(fig_bar)
 
         # ---------- Select Cluster ----------
         selected_cluster = st.selectbox(
-            "Select Cluster for Apriori",
-            sorted(df["Cluster"].unique())
+            "Select Cluster for Apriori Analysis",
+            options=sorted(df["Cluster"].unique())
         )
 
         st.markdown(f"### 📌 Association Rules for **Cluster {selected_cluster}**")
 
-        # ---------- Filter Cluster ----------
+        # ---------- Filter Selected Cluster ----------
         cluster_df = df[df["Cluster"] == selected_cluster]
 
-        st.write("### Cluster Statistics")
-        st.write("Total Invoices:", cluster_df["InvoiceID"].nunique())
-        st.write("Unique Items:", cluster_df["ItemName"].nunique())
+        # ---------- Cluster Statistics ----------
+        st.subheader("📊 Cluster Statistics")
+        col1, col2 = st.columns(2)
+        col1.metric("Total Invoices", cluster_df["InvoiceID"].nunique())
+        col2.metric("Unique Items", cluster_df["ItemName"].nunique())
 
-        # ---------- Remove single-item invoices ----------
-        invoice_item_count = cluster_df.groupby("InvoiceID")["ItemName"].nunique()
+        # ---------- Remove Single-item Invoices ----------
+        invoice_item_count = (
+            cluster_df.groupby("InvoiceID")["ItemName"].nunique()
+        )
         valid_invoices = invoice_item_count[invoice_item_count >= 2].index
-        cluster_df = cluster_df[cluster_df["InvoiceID"].isin(valid_invoices)]
+        cluster_df = cluster_df[
+            cluster_df["InvoiceID"].isin(valid_invoices)
+        ]
 
-        # ---------- Basket ----------
+        # ---------- Basket Creation ----------
         basket = (
             cluster_df
             .groupby(["InvoiceID", "ItemName"])["Quantity"]
@@ -352,7 +370,7 @@ with tab4:
         )
 
         basket = (basket > 0).astype(int)
-        st.write("Basket Shape:", basket.shape)
+        st.write("🧺 Basket Shape:", basket.shape)
 
         # ---------- Apriori ----------
         min_support = max(1 / basket.shape[0], 0.003)
@@ -364,7 +382,7 @@ with tab4:
         )
 
         if freq_items.empty:
-            st.warning("❌ No frequent itemsets found")
+            st.warning("❌ No frequent itemsets found for this cluster")
 
         else:
             rules = association_rules(
@@ -374,10 +392,10 @@ with tab4:
             )
 
             if rules.empty:
-                st.warning("❌ No valid association rules formed")
+                st.warning("❌ No association rules generated")
 
             else:
-                st.subheader("### ✅ Association Rules")
+                st.subheader("✅ Top Association Rules")
                 st.dataframe(
                     rules[
                         ["antecedents", "consequents", "support", "confidence", "lift"]
@@ -387,40 +405,52 @@ with tab4:
                 )
 
                 # =====================================
-                # 🔎 COMBINED EVALUATION METRICS
+                # 📊 Combined Evaluation Metrics
                 # =====================================
                 st.subheader("📊 Combined Model Evaluation Metrics")
-
-                # ---------- K-Means Metrics ----------
-                kmeans_metrics = {
-                    "Inertia (WCSS)": kmeans.inertia_,
-                    "Silhouette Score": silhouette_score(num_scaled, df["Cluster"]),
-                    "Davies-Bouldin Index": davies_bouldin_score(num_scaled, df["Cluster"]),
-                    "Calinski-Harabasz Index": calinski_harabasz_score(num_scaled, df["Cluster"])
-                }
-
-                # ---------- Apriori Metrics ----------
-                apriori_metrics = {
-                    "Average Support": rules["support"].mean(),
-                    "Average Confidence": rules["confidence"].mean(),
-                    "Average Lift": rules["lift"].mean(),
-                    "Average Leverage": rules["leverage"].mean(),
-                    "Average Conviction": rules["conviction"].mean()
-                }
 
                 col1, col2 = st.columns(2)
 
                 with col1:
                     st.markdown("### 🔵 K-Means Metrics")
-                    for k, v in kmeans_metrics.items():
-                        st.metric(k, f"{v:.4f}")
+                    st.metric("Inertia (WCSS)", f"{kmeans.inertia_:.4f}")
+                    st.metric(
+                        "Silhouette Score",
+                        f"{silhouette_score(num_scaled, df['Cluster']):.4f}"
+                    )
+                    st.metric(
+                        "Davies-Bouldin Index",
+                        f"{davies_bouldin_score(num_scaled, df['Cluster']):.4f}"
+                    )
+                    st.metric(
+                        "Calinski-Harabasz Index",
+                        f"{calinski_harabasz_score(num_scaled, df['Cluster']):.4f}"
+                    )
 
                 with col2:
                     st.markdown("### 🟢 Apriori Metrics")
-                    for k, v in apriori_metrics.items():
-                        st.metric(k, f"{v:.4f}")
+                    st.metric(
+                        "Average Support",
+                        f"{rules['support'].mean():.4f}"
+                    )
+                    st.metric(
+                        "Average Confidence",
+                        f"{rules['confidence'].mean():.4f}"
+                    )
+                    st.metric(
+                        "Average Lift",
+                        f"{rules['lift'].mean():.4f}"
+                    )
+                    st.metric(
+                        "Average Leverage",
+                        f"{rules['leverage'].mean():.4f}"
+                    )
+                    st.metric(
+                        "Average Conviction",
+                        f"{rules['conviction'].mean():.4f}"
+                    )
 
-                # ---------- Visualizations ----------
+                # ---------- Rule Visualizations ----------
                 st.subheader("📊 Rule Visualizations")
 
                 fig1, ax1 = plt.subplots()
@@ -435,6 +465,6 @@ with tab4:
                 st.pyplot(fig2)
 
     else:
-        st.info("Upload CSV file")
+        st.info("Upload CSV file to run Hybrid Model")
 
 
