@@ -130,9 +130,7 @@ with tab1:
     else:
         st.info("Upload CSV file to perform RFM analysis")
 
-# =====================================================
-# TAB 2: K-MEANS CLUSTERING
-# =====================================================
+
 # =====================================================
 # TAB 2: K-MEANS CLUSTERING
 # =====================================================
@@ -140,19 +138,28 @@ with tab2:
     if df is not None:
         st.header("📊 K-Means Clustering")
 
+        # -------------------------------
+        # Dataset Preview
+        # -------------------------------
         st.subheader("📄 Dataset Preview")
         st.dataframe(df.head())
 
-        # ---------- Select Numeric Columns ----------
+        # -------------------------------
+        # Select Numeric Columns
+        # -------------------------------
         num_cols = ["Quantity", "UnitPrice", "TotalAmount"]
         data = df[num_cols]
         st.write("Numeric columns used:", num_cols)
 
-        # ---------- Scaling ----------
+        # -------------------------------
+        # Scaling
+        # -------------------------------
         scaler = StandardScaler()
         scaled_data = scaler.fit_transform(data)
 
-        # ---------- Elbow Method ----------
+        # -------------------------------
+        # Elbow Method (for reference)
+        # -------------------------------
         wcss = []
         for k_val in range(1, 11):
             km = KMeans(n_clusters=k_val, random_state=42, n_init=10)
@@ -166,32 +173,57 @@ with tab2:
         ax_elbow.set_title("Elbow Method")
         st.pyplot(fig_elbow)
 
-        # ---------- Choose K ----------
-        k = st.slider("Select number of clusters (K)",2,10,3)
+        # -------------------------------
+        # Choose K (DROP-DOWN)
+        # -------------------------------
+        k = st.selectbox(
+            "Select number of clusters (K)",
+            options=list(range(2, 11)),
+            index=1  # default = K=3
+        )
 
         kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
         clusters = kmeans.fit_predict(scaled_data)
-
         df["KMeans_Cluster"] = clusters
 
         # -------------------------------
-        # 3️⃣ K-Means Evaluation Metrics
+        # Evaluation Metrics (RAW)
         # -------------------------------
-        st.subheader("📊 K-Means Evaluation Metrics")
-
         inertia = kmeans.inertia_
         silhouette = silhouette_score(scaled_data, clusters)
         davies_bouldin = davies_bouldin_score(scaled_data, clusters)
         calinski_harabasz = calinski_harabasz_score(scaled_data, clusters)
 
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Inertia (WCSS)", f"{inertia:.2f}")
-        col2.metric("Silhouette Score", f"{silhouette:.4f}")
-        col3.metric("Davies–Bouldin Index", f"{davies_bouldin:.4f}")
-        col4.metric("Calinski–Harabasz Index", f"{calinski_harabasz:.2f}")
+        st.subheader("📊 K-Means Evaluation Metrics (Raw Values)")
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Inertia (WCSS)", f"{inertia:.4f}")
+        c2.metric("Silhouette Score", f"{silhouette:.4f}")
+        c3.metric("Davies–Bouldin Index", f"{davies_bouldin:.4f}")
+        c4.metric("Calinski–Harabasz Index", f"{calinski_harabasz:.4f}")
 
         # -------------------------------
-        # 4️⃣ Cluster Visualization
+        # Normalization Function
+        # -------------------------------
+        def normalize(value, min_val, max_val):
+            return (value - min_val) / (max_val - min_val + 1e-9)
+
+        # -------------------------------
+        # FLOAT CONVERSION (0–1)
+        # -------------------------------
+        inertia_float = 1 - normalize(inertia, min(wcss), max(wcss))
+        calinski_float = normalize(calinski_harabasz, 0, calinski_harabasz * 1.2)
+
+        st.subheader("📊 K-Means Evaluation Metrics (Float Values: 0–1)")
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Inertia (Float)", f"{inertia_float:.3f}")
+        c2.metric("Silhouette (Float)", f"{silhouette:.3f}")
+        c3.metric("Davies–Bouldin (Float)", f"{davies_bouldin:.3f}")
+        c4.metric("Calinski–Harabasz (Float)", f"{calinski_float:.3f}")
+
+        # -------------------------------
+        # Cluster Visualization
         # -------------------------------
         st.subheader("📊 Cluster Visualization (Feature Space)")
 
@@ -202,12 +234,14 @@ with tab2:
             c=clusters,
             cmap="viridis"
         )
-        ax_cluster.set_xlabel("Feature 1 (Scaled)")
-        ax_cluster.set_ylabel("Feature 2 (Scaled)")
+        ax_cluster.set_xlabel("Quantity (Scaled)")
+        ax_cluster.set_ylabel("UnitPrice (Scaled)")
         ax_cluster.set_title("K-Means Clustering Result")
         st.pyplot(fig_cluster)
 
-        # ---------- PCA for Visualization ----------
+        # -------------------------------
+        # PCA Visualization
+        # -------------------------------
         from sklearn.decomposition import PCA
         pca = PCA(n_components=2)
         pca_data = pca.fit_transform(scaled_data)
@@ -219,19 +253,20 @@ with tab2:
             c=clusters,
             cmap="viridis"
         )
-        ax_pca.set_xlabel("PCA 1")
-        ax_pca.set_ylabel("PCA 2")
+        ax_pca.set_xlabel("Quantity (Scaled)")
+        ax_pca.set_ylabel("UnitPrice (Scaled)")
         ax_pca.set_title("K-Means Clusters (PCA View)")
         st.pyplot(fig_pca)
 
-        # ---------- Cluster Distribution ----------
+        # -------------------------------
+        # Cluster Distribution
+        # -------------------------------
         st.subheader("📊 Cluster Size Distribution")
         cluster_counts = pd.Series(clusters).value_counts().sort_index()
         st.bar_chart(cluster_counts)
 
     else:
-        st.info("Upload CSV file")
-
+        st.info("📂 Upload CSV file to perform K-Means clustering")
 
 # =====================================================
 # TAB 3: APRIORI
@@ -301,11 +336,11 @@ with tab4:
     if df is not None:
         st.header("🔗 Hybrid K-Means + Apriori (Cluster-wise Rules)")
 
-        # ---------- Select Number of Clusters (Dropdown) ----------
+        # ---------- Select Number of Clusters ----------
         k_hybrid = st.selectbox(
             "Select Number of Clusters (K)",
             options=list(range(2, 11)),
-            index=1  # default = 3
+            index=1
         )
 
         # ---------- K-Means ----------
@@ -319,14 +354,12 @@ with tab4:
             n_init=10
         )
 
-        # Shift labels to 1...K
         df["Cluster"] = kmeans.fit_predict(num_scaled) + 1
 
         # ---------- Cluster Distribution ----------
         st.subheader("📊 Cluster Distribution")
 
         cluster_counts = df["Cluster"].value_counts().sort_index()
-
         fig_bar, ax_bar = plt.subplots()
         ax_bar.bar(cluster_counts.index, cluster_counts.values)
         ax_bar.set_xlabel("Cluster")
@@ -356,9 +389,7 @@ with tab4:
             cluster_df.groupby("InvoiceID")["ItemName"].nunique()
         )
         valid_invoices = invoice_item_count[invoice_item_count >= 2].index
-        cluster_df = cluster_df[
-            cluster_df["InvoiceID"].isin(valid_invoices)
-        ]
+        cluster_df = cluster_df[cluster_df["InvoiceID"].isin(valid_invoices)]
 
         # ---------- Basket Creation ----------
         basket = (
@@ -370,7 +401,6 @@ with tab4:
         )
 
         basket = (basket > 0).astype(int)
-        st.write("🧺 Basket Shape:", basket.shape)
 
         # ---------- Apriori ----------
         min_support = max(1 / basket.shape[0], 0.003)
@@ -405,15 +435,32 @@ with tab4:
                 )
 
                 # =====================================
-                # 📊 Combined Evaluation Metrics
+                # 📊 Combined Model Evaluation Metrics
                 # =====================================
                 st.subheader("📊 Combined Model Evaluation Metrics")
+
+                # ---------- Normalization Function ----------
+                def normalize(value, min_val, max_val):
+                    return (value - min_val) / (max_val - min_val + 1e-9)
+
+                # ---------- FLOAT CONVERSION ----------
+                inertia_float = 1 - normalize(
+                    kmeans.inertia_,
+                    min(kmeans.inertia_ * 0.8, kmeans.inertia_),
+                    kmeans.inertia_ * 1.2
+                )
+
+                calinski_float = normalize(
+                    calinski_harabasz_score(num_scaled, df["Cluster"]),
+                    0,
+                    calinski_harabasz_score(num_scaled, df["Cluster"]) * 1.2
+                )
 
                 col1, col2 = st.columns(2)
 
                 with col1:
-                    st.markdown("### 🔵 K-Means Metrics")
-                    st.metric("Inertia (WCSS)", f"{kmeans.inertia_:.4f}")
+                    st.markdown("### 🔵 K-Means Metrics (Float Values 0–1)")
+                    st.metric("Inertia (Float)", f"{inertia_float:.3f}")
                     st.metric(
                         "Silhouette Score",
                         f"{silhouette_score(num_scaled, df['Cluster']):.4f}"
@@ -423,32 +470,17 @@ with tab4:
                         f"{davies_bouldin_score(num_scaled, df['Cluster']):.4f}"
                     )
                     st.metric(
-                        "Calinski-Harabasz Index",
-                        f"{calinski_harabasz_score(num_scaled, df['Cluster']):.4f}"
+                        "Calinski-Harabasz (Float)",
+                        f"{calinski_float:.3f}"
                     )
 
                 with col2:
                     st.markdown("### 🟢 Apriori Metrics")
-                    st.metric(
-                        "Average Support",
-                        f"{rules['support'].mean():.4f}"
-                    )
-                    st.metric(
-                        "Average Confidence",
-                        f"{rules['confidence'].mean():.4f}"
-                    )
-                    st.metric(
-                        "Average Lift",
-                        f"{rules['lift'].mean():.4f}"
-                    )
-                    st.metric(
-                        "Average Leverage",
-                        f"{rules['leverage'].mean():.4f}"
-                    )
-                    st.metric(
-                        "Average Conviction",
-                        f"{rules['conviction'].mean():.4f}"
-                    )
+                    st.metric("Average Support", f"{rules['support'].mean():.4f}")
+                    st.metric("Average Confidence", f"{rules['confidence'].mean():.4f}")
+                    st.metric("Average Lift", f"{rules['lift'].mean():.4f}")
+                    st.metric("Average Leverage", f"{rules['leverage'].mean():.4f}")
+                    st.metric("Average Conviction", f"{rules['conviction'].mean():.4f}")
 
                 # ---------- Rule Visualizations ----------
                 st.subheader("📊 Rule Visualizations")
